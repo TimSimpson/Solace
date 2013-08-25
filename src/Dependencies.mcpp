@@ -1,0 +1,16 @@
+// Tell Macaroni how to find these structs in the standard library or windows.h.
+
+// Because a header file is given here, Macaroni will never try to build them,
+// nor will it create forward declarations.
+
+class CONSOLE_SCREEN_BUFFER_INFOEX { ~hfile=<windows.h> };
+class HANDLE { ~hfile=<windows.h> };
+class HWND { ~hfile=<windows.h> };
+class WINDOWPLACEMENT { ~hfile=<windows.h> };
+
+namespace std
+{
+    class cerr { ~hfile=<iostream> };
+    class cout { ~hfile=<iostream> };
+    class endl { ~hfile=<iostream> };
+}

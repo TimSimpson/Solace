@@ -1,0 +1,202 @@
+/**
+ * Copyright 2013 Tim Simpson
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+namespace Solace {
+
+class ConsoleColor {
+    // Represents an RGB color used in the Windows Console.
+    ~import std::ostream;
+    ~import std::istream;
+public:
+    unsigned int R;
+    unsigned int G;
+    unsigned int B;
+
+    ConsoleColor(const unsigned int & R,
+                 const unsigned int & G,
+                 const unsigned int & B)
+    :   R(R),
+        G(G),
+        B(B)
+    {
+    }
+
+    ConsoleColor(istream & stream)
+    :   R(0),
+        G(0),
+        B(0)
+    {
+        stream >> R;
+        stream >> G;
+        stream >> B;
+    }
+
+    ~global ~friend std::ostream & operator << (std::ostream & stream,
+                                                const ConsoleColor & color)
+    {
+        stream << color.R << " " << color.G << " " << color.B;
+        return stream;
+    }
+};
+
+class ConsoleManager
+{
+    ~import CONSOLE_SCREEN_BUFFER_INFOEX;
+
+    ~block "cpp-include" {
+        // Declaring references to libraries in Macaroni (or C++- let's be
+        // honest here) isn't that easy at the moment. Using these Windows-only
+        // compiler commands gets around the issue.
+        #pragma comment(lib, "Kernel32.lib")
+        #pragma comment (lib, "user32.lib")
+        // Including this here turns out to be easier than ~importing it.
+        #include <stdexcept>
+    }
+
+    private HANDLE console;
+    private HWND hWnd;
+    private CONSOLE_SCREEN_BUFFER_INFOEX info;
+    private WINDOWPLACEMENT place;
+
+    public ConsoleManager()
+    :   console(GetStdHandle(STD_OUTPUT_HANDLE)),
+        hWnd(GetConsoleWindow()),
+        info(),
+        place()
+    {
+        info.cbSize = sizeof(info);
+        recordWindowsPosition();
+    }
+
+    public const unsigned int ColorCount() const
+    {
+        return 16;
+    }
+
+    public ConsoleColor GetColor(const unsigned int index) const
+    {
+        if (index > 15) {
+            throw std::out_of_range("index");
+        }
+        const auto & element = info.ColorTable[index];
+        const ConsoleColor color(GetRValue(element),
+                                 GetGValue(element),
+                                 GetBValue(element));
+        return color;
+    }
+
+    public void SetColor(const unsigned int index, const ConsoleColor & color)
+    {
+        if (index > 15) {
+            throw std::out_of_range("index");
+        }
+        info.ColorTable[index] = RGB(color.R, color.G, color.B);
+    }
+
+    private void recordWindowsPosition() {
+        GetConsoleScreenBufferInfoEx(console, &info);
+        // Because it's impossible to do anything with the Windows API without
+        // jumping through dozens of hoops we've got to record the Console's
+        // window position before changing the colors, since the call to do
+        // that will also muck up the Window position.
+        GetWindowPlacement(hWnd, &place);
+        // It gets better. If Aero snap is used then GetWindowPlacement returns
+        // bogus data for the position. So we have to overwrite it's position
+        // values with one from GetWindowRect.
+        if (!IsZoomed(hWnd))
+        {
+            if (0 == GetWindowRect(hWnd, &place.rcNormalPosition)) {
+                cout << "Error getting Console window rect!\n";
+            }
+        }
+    }
+
+    public void UpdateWindow() {
+        info.ColorTable[14] = RGB(255, 128, 0);  // Replace yellow
+        SetConsoleScreenBufferInfoEx(console, &info);
+        SetWindowPlacement(hWnd, &place);
+    }
+};
+
+} // end namespace Solace
+
+
+~unit "solace-dump"
+    type=exe
+{
+~import std::cout;
+~import std::endl;
+~import Solace::ConsoleColor;
+~import Solace::ConsoleManager;
+~block "cpp" {
+
+int main(int argc, char ** argv)
+{
+    ConsoleManager solace;
+    for (unsigned int index = 0; index < solace.ColorCount(); index ++)
+    {
+        cout << index << " = " << solace.GetColor(index) << "\n";
+    }
+    return 0;
+}
+
+} // end block
+} // end unit
+
+
+~unit "solace-load"
+    type=exe
+{
+~import std::cout;
+~import std::cerr;
+~import std::endl;
+~import std::ifstream;
+~import Solace::ConsoleColor;
+~import Solace::ConsoleManager;
+~block "cpp" {
+
+int main(int argc, char ** argv)
+{
+    if (argc < 2)
+    {
+        cerr << "Usage: "
+             << ((argc < 1) ? "solace-load" : argv[0])
+             << " color-file\n";
+        cerr << "Use solace-dump to view current colors.\n";
+        return 1;
+    }
+    ifstream file(argv[1]);
+    ConsoleManager solace;
+    while(!file.eof() && file.good()) {
+        unsigned int index;
+        file >> index;
+        if (file.eof()) {
+            break;
+        }
+        char equalsSign;
+        file >> equalsSign;
+        if (equalsSign != '=')
+        {
+            cerr << "Malformed input for index " << index << ".\n";
+            return 1;
+        }
+        const ConsoleColor color(file);
+        solace.SetColor(index, color);
+    }
+    solace.UpdateWindow();
+}
+
+} // end block
+} // end unit
