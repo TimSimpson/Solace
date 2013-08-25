@@ -30,7 +30,8 @@ command line.
 
 ### Building ###
 
-Solace requires Macaroni and Boost Build.
+Building Solace requires <a href="http://border-town.com/macaroni/">Macaroni</a>
+ and <a href="http://www.boost.org/doc/libs/1_54_0/more/getting_started/windows.html">Boost Build</a>.
 
 Assuming both are configured, all that's needed is to download it's source and
 execute "macaroni build".
