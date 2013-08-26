@@ -13,4 +13,5 @@ namespace std
     class cerr { ~hfile=<iostream> };
     class cout { ~hfile=<iostream> };
     class endl { ~hfile=<iostream> };
+    class pair { ~hfile=<utility> };
 }

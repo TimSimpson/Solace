@@ -54,6 +54,7 @@ public:
 class ConsoleManager
 {
     ~import CONSOLE_SCREEN_BUFFER_INFOEX;
+    ~import std::string;
 
     ~block "cpp-include" {
         // Declaring references to libraries in Macaroni (or C++- let's be
@@ -95,6 +96,26 @@ class ConsoleManager
                                  GetGValue(element),
                                  GetBValue(element));
         return color;
+    }
+
+    public static string GetSolaceFilesDirectory()
+    {
+        const size_t bufferSize = 32767;
+        char buffer[bufferSize];
+        const auto size = GetEnvironmentVariableA(
+            "SOLACE_FILES", buffer, bufferSize);
+        if (0 == size)
+        {
+            return "";
+        } else if (size > bufferSize) {
+            throw std::runtime_error("Value in SOLACE_FILES was too large.");
+        }
+        string value(buffer, size);
+        if (value.size() > 0 && value[value.size() - 1] != '\\')
+        {
+            value += "\\";
+        }
+        return value;
     }
 
     public void SetColor(const unsigned int index, const ConsoleColor & color)
@@ -159,25 +180,52 @@ int main(int argc, char ** argv)
 ~unit "solace-load"
     type=exe
 {
+
 ~import std::cout;
 ~import std::cerr;
 ~import std::endl;
 ~import std::ifstream;
 ~import Solace::ConsoleColor;
 ~import Solace::ConsoleManager;
+~import std::pair;
+~import std::string;
+
 ~block "cpp" {
 
-int main(int argc, char ** argv)
+bool exists(const string & filePath)
 {
-    if (argc < 2)
+    ifstream file(filePath);
+    return !!file;
+}
+
+pair<string, bool> determineFilePath(const char * argument)
+{
+    string filePath(argument);
+    if (!exists(filePath)) {
+        const auto directory = ConsoleManager::GetSolaceFilesDirectory();
+        filePath = directory + argument;
+        if (!exists(filePath)) {
+            filePath += ".solace";
+            if (!exists(filePath)) {
+                return std::make_pair("", true);
+            }
+        }
+    }
+    return std::make_pair(filePath, false);
+}
+
+int loadFile(const char * argument)
+{
+    pair<string, bool> fileInfo;
+    fileInfo = determineFilePath(argument);
+
+    if (fileInfo.second)
     {
-        cerr << "Usage: "
-             << ((argc < 1) ? "solace-load" : argv[0])
-             << " color-file\n";
-        cerr << "Use solace-dump to view current colors.\n";
+        cerr << "File not file found for \"" << argument << ".\"\n";
         return 1;
     }
-    ifstream file(argv[1]);
+
+    ifstream file(fileInfo.first);
     ConsoleManager solace;
     while(!file.eof() && file.good()) {
         unsigned int index;
@@ -196,6 +244,29 @@ int main(int argc, char ** argv)
         solace.SetColor(index, color);
     }
     solace.UpdateWindow();
+    return 0;
+}
+
+int main(int argc, char ** argv)
+{
+    if (argc < 2)
+    {
+        cerr << "Usage: "
+             << ((argc < 1) ? "solace-load" : argv[0])
+             << " color-file\n";
+        cerr << "Use solace-dump to view current colors.\n";
+        return 1;
+    }
+
+    try
+    {
+        return loadFile(argv[1]);
+    }
+    catch(const std::exception & e)
+    {
+        cerr << e.what() << "\n";
+        return 1;
+    }
 }
 
 } // end block
