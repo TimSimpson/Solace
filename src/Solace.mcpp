@@ -145,7 +145,6 @@ class ConsoleManager
     }
 
     public void UpdateWindow() {
-        info.ColorTable[14] = RGB(255, 128, 0);  // Replace yellow
         SetConsoleScreenBufferInfoEx(console, &info);
         SetWindowPlacement(hWnd, &place);
     }
