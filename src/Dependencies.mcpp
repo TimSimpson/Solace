@@ -14,4 +14,5 @@ namespace std
     class cout { ~hfile=<iostream> };
     class endl { ~hfile=<iostream> };
     class pair { ~hfile=<utility> };
+    class stringstream { ~hfile=<sstream> };
 }

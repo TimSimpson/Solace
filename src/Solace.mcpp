@@ -55,6 +55,7 @@ class ConsoleManager
 {
     ~import CONSOLE_SCREEN_BUFFER_INFOEX;
     ~import std::string;
+    ~import boost::filesystem::path;
 
     ~block "cpp-include" {
         // Declaring references to libraries in Macaroni (or C++- let's be
@@ -98,7 +99,7 @@ class ConsoleManager
         return color;
     }
 
-    public static string GetSolaceFilesDirectory()
+    public static path GetSolaceFilesDirectory()
     {
         const size_t bufferSize = 32767;
         char buffer[bufferSize];
@@ -106,7 +107,7 @@ class ConsoleManager
             "SOLACE_FILES", buffer, bufferSize);
         if (0 == size)
         {
-            return "";
+            throw std::runtime_error("SOLACE_FILES environment variable not set.");
         } else if (size > bufferSize) {
             throw std::runtime_error("Value in SOLACE_FILES was too large.");
         }
@@ -115,7 +116,8 @@ class ConsoleManager
         {
             value += "\\";
         }
-        return value;
+        path p = value;
+        return p;
     }
 
     public void SetColor(const unsigned int index, const ConsoleColor & color)
@@ -148,21 +150,32 @@ class ConsoleManager
         SetConsoleScreenBufferInfoEx(console, &info);
         SetWindowPlacement(hWnd, &place);
     }
+
+    public ~global bool exists(const path & filePath)
+    {
+        return boost::filesystem::exists(filePath);
+    }
 };
 
 } // end namespace Solace
 
 
 ~unit "solace-dump"
-    type=exe
 {
 ~import std::cout;
 ~import std::endl;
 ~import Solace::ConsoleColor;
 ~import Solace::ConsoleManager;
+
+
+~block "h" {
+    int solace_dump(int argc, char ** argv);
+}
+
+
 ~block "cpp" {
 
-int main(int argc, char ** argv)
+int solace_dump(int argc, char ** argv)
 {
     ConsoleManager solace;
     for (unsigned int index = 0; index < solace.ColorCount(); index ++)
@@ -176,8 +189,57 @@ int main(int argc, char ** argv)
 } // end unit
 
 
+
+~unit "solace-list"
+{
+    ~import Solace::ConsoleManager;
+    ~import std::cout;
+    ~import std::cerr;
+    ~import std::endl;
+    ~import boost::filesystem::path;
+    ~import std::stringstream;
+
+
+    ~block "h" {
+        int solace_list(int argc, char ** argv);
+    }
+
+    ~block "cpp" {
+
+    int solace_list(int argc, char ** argv)
+    {
+        using boost::filesystem::directory_iterator;
+        using boost::filesystem::is_regular_file;
+
+        try
+        {
+             const auto directory = ConsoleManager::GetSolaceFilesDirectory();
+             if (!Solace::exists(directory)) {
+                cerr << "Error: SOLACE_FILES is not set to a directory "
+                        "(value = " << directory << ").";
+                return 1;
+             }
+             cout << "Available Solace Files (use with solace-load):" << endl;
+             const directory_iterator end;
+             for (directory_iterator itr(directory); itr != end; ++ itr) {
+                if (is_regular_file(itr->status())) {
+                    path p = *itr;
+                    cout << "    " << p.stem().string() << endl;
+                }
+             }
+             return 0;
+        }
+        catch(const std::runtime_error & re)
+        {
+            cerr << "Error: " << re.what() << "\n";
+            return 1;
+        }
+    }
+} // end block
+}
+
+
 ~unit "solace-load"
-    type=exe
 {
 
 ~import std::cout;
@@ -187,26 +249,27 @@ int main(int argc, char ** argv)
 ~import Solace::ConsoleColor;
 ~import Solace::ConsoleManager;
 ~import std::pair;
+~import boost::filesystem::path;
 ~import std::string;
+
+~block "h" {
+    int solace_load(int argc, char ** argv);
+}
 
 ~block "cpp" {
 
-bool exists(const string & filePath)
-{
-    ifstream file(filePath);
-    return !!file;
-}
 
-pair<string, bool> determineFilePath(const char * argument)
+
+pair<path, bool> determineFilePath(const char * argument)
 {
-    string filePath(argument);
-    if (!exists(filePath)) {
+    path filePath = argument;
+    if (!Solace::exists(filePath)) {
         const auto directory = ConsoleManager::GetSolaceFilesDirectory();
-        filePath = directory + argument;
-        if (!exists(filePath)) {
+        filePath = directory / argument;
+        if (!Solace::exists(filePath)) {
             filePath += ".solace";
-            if (!exists(filePath)) {
-                return std::make_pair("", true);
+            if (!Solace::exists(filePath)) {
+                return std::make_pair(filePath, true);
             }
         }
     }
@@ -215,16 +278,23 @@ pair<string, bool> determineFilePath(const char * argument)
 
 int loadFile(const char * argument)
 {
-    pair<string, bool> fileInfo;
-    fileInfo = determineFilePath(argument);
-
+    pair<path, bool> fileInfo;
+    try {
+        fileInfo = determineFilePath(argument);
+    } catch(const std::runtime_error & re) {
+        cerr << "Error loading file: " << re.what() << "\n";
+        return 1;
+    }
     if (fileInfo.second)
     {
-        cerr << "File not file found for \"" << argument << ".\"\n";
+        cerr << "File not file found at \"" << fileInfo.first << ".\"\n";
+        cerr << "Reminder: the current value of SOLACE_FILES is \""
+             << ConsoleManager::GetSolaceFilesDirectory() << "\".\n";
+        cerr << "View what files are available using \"solace list\".\n";
         return 1;
     }
 
-    ifstream file(fileInfo.first);
+    ifstream file(fileInfo.first.string());
     ConsoleManager solace;
     while(!file.eof() && file.good()) {
         unsigned int index;
@@ -246,14 +316,14 @@ int loadFile(const char * argument)
     return 0;
 }
 
-int main(int argc, char ** argv)
+int solace_load(int argc, char ** argv)
 {
     if (argc < 2)
     {
         cerr << "Usage: "
              << ((argc < 1) ? "solace-load" : argv[0])
              << " color-file\n";
-        cerr << "Use solace-dump to view current colors.\n";
+        cerr << "Use \"list\" to view current colors.\n";
         return 1;
     }
 
@@ -269,4 +339,40 @@ int main(int argc, char ** argv)
 }
 
 } // end block
+} // end unit
+
+
+~unit "solace"
+    type=exe
+{
+~import std::string;
+
+~block "cpp" //;  // <-- Sublime syntax highlighter hack
+{
+    #include "solace-dump.h"
+    #include "solace-list.h"
+    #include "solace-load.h"
+
+
+    int main(int argc, char ** argv)
+    {
+        if (argc < 2) {
+            cerr << "Usage: "
+                 << ((argc < 1) ? "solace" : argv[0])
+                 << " [dump|list|load]\n";
+            return 1;
+        }
+        string option(argv[1]);
+        if (option == "dump") {
+            return solace_dump(argc -1, argv + 1);
+        } else if (option == "list") {
+            return solace_list(argc -1, argv + 1);
+        } else if (option == "load") {
+            return solace_load(argc -1, argv + 1);
+        } else {
+            cerr << "Invalid option: " << option << "\n";
+            return 1;
+        }
+    }
+}
 } // end unit
