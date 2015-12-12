@@ -149,6 +149,14 @@ class ConsoleManager
     public void UpdateWindow() {
         SetConsoleScreenBufferInfoEx(console, &info);
         SetWindowPlacement(hWnd, &place);
+
+        // This worked in Windows 10 at first but recently things changed
+        // and the color doesn't take effect unless the user changes the
+        // colors using the color command.
+        // The lines below have the same effect as having the user
+        // call "COLOR 01\n COLOR 07".
+        SetConsoleTextAttribute(console, 0 + 1);
+        SetConsoleTextAttribute(console, 0 + 7);
     }
 
     public ~global bool exists(const path & filePath)
