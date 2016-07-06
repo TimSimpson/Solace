@@ -1,6 +1,8 @@
 Solace
 ======
 
+[![Build status](https://ci.appveyor.com/api/projects/status/32onkslnpe6w4r49?svg=true)](https://ci.appveyor.com/project/TimSimpson/solace)
+
 Solace mitigates the pain caused by the Windows console.
 
 You see, the Windows terminal can only use 16 colors, and while it's possible to
@@ -48,10 +50,12 @@ After that, make sure "solace" is on your PATH and type solace followed by:
 ### Building ###
 
 Building Solace requires <a href="http://border-town.com/macaroni/">Macaroni</a>
-and <a href="http://www.boost.org/doc/libs/1_54_0/more/getting_started/windows.html">Boost Build</a>. You will also need to have the boost filesystem
-libraries available.
+and <a href="https://www.conan.io/">Conan</a>. Both tools must be available on
+the path.
 
-Assuming both are configured, all that's needed is to download it's source and
-execute "macaroni -b -o link=static".
+To build, enter the workspace directory and
 
-
+    $ mkdir build
+    $ cd build
+    $ conan install ..
+    $ conan build ..

@@ -54,6 +54,7 @@ public:
 class ConsoleManager
 {
     ~import CONSOLE_SCREEN_BUFFER_INFOEX;
+    ~import std::cout;
     ~import std::string;
     ~import boost::filesystem::path;
 
