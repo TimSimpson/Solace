@@ -13,6 +13,15 @@ namespace std
     class cerr { ~hfile=<iostream> };
     class cout { ~hfile=<iostream> };
     class endl { ~hfile=<iostream> };
+    class ifstream { ~hfile=<iostream> };
+    class istream { ~hfile=<iostream> };
+    class ostream { ~hfile=<iostream> };
     class pair { ~hfile=<utility> };
+    class string { ~hfile=<string> };
     class stringstream { ~hfile=<sstream> };
+}
+
+namespace boost::filesystem
+{
+    class path { ~hfile=<boost/filesystem.hpp> };
 }
